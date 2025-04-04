@@ -3,7 +3,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 def process_all_code_files(code_files):
     """Reads code files and splits them into chunks using LangChain."""
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,  # Each chunk will be ~1000 characters
+        chunk_size=2000,  # Each chunk will be ~1000 characters
         chunk_overlap=100  # Overlap between chunks to maintain context
     )
 

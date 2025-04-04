@@ -1,53 +1,104 @@
 import os
 import json
 import re
+import time
+import random
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import GoogleGenerativeAI
 
 load_dotenv()
 
-llm = GoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=os.getenv("GEMINI_API_KEY"))
+llm = GoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=os.getenv("GEMINI_API_KEY"))
 
+# 🔹 Prompt: Returns only critical issues
 bug_analysis_prompt = PromptTemplate(
-    input_variables=["code_chunk"],  # ✅ Removed "user_id" (it was causing KeyError)
+    input_variables=["code_chunk", "language"],
     template="""
-    You are a software engineer reviewing code. Analyze the following Python code and return issues in **strict JSON format**.
+    You are a software engineer with a cybersecurity mindset. Analyze the following {language} code and report only **critical issues** in strict JSON format.
 
-    For each issue, include:
-    - `description`: A brief explanation of the issue.
-    - `severity`: Choose one of ["Critical", "Warning", "Minor"].
-    - `recommendation`: How to fix it.
+    Focus on:
+    - Critical bugs that may cause functional failure or crashes
+    - Security vulnerabilities such as:
+        - Data leaks (e.g., hardcoded credentials, logging passwords)
+        - Unsafe input handling (e.g., lack of validation, SQL injection risks)
+        - Use of dangerous functions (e.g., eval, exec, shell access)
 
-    Also include the **code snippet** related to the issue.
+    For each issue, return:
+    - `description`: A clear explanation of the issue
+    - `severity`: Always "Critical"
+    - `recommendation`: How to fix or prevent it
+    - `code`: The exact code snippet where the issue occurs
+
+    Only return issues of **critical severity**. Skip minor suggestions or best practices.
 
     Code:
-    ```python
+    ```{language}
     {code_chunk}
     ```
 
-    **Strictly return valid JSON** (without markdown formatting) like:
+    Output must be valid JSON (no markdown formatting), like:
     [
-        {{"description": "SQL Injection vulnerability", "severity": "Critical", "recommendation": "Use prepared statements", "code": "user_input = input()"}},
-        {{"description": "Inefficient loop", "severity": "Warning", "recommendation": "Use list comprehensions", "code": "for i in range(len(lst)): print(lst[i])"}},
-        {{"description": "Missing docstring", "severity": "Minor", "recommendation": "Add a docstring", "code": "def my_function(): pass"}}
+        {{
+          "description": "...",
+          "severity": "Critical",
+          "recommendation": "...",
+          "code": "..."
+        }}
     ]
     """
 )
 
-def analyze_code_chunk(code_chunk):
-    """Analyzes a code chunk and ensures JSON output, including the related code snippet."""
-    chain = bug_analysis_prompt | llm
-    response = chain.invoke({"code_chunk": code_chunk})
-
-    # 🛠 Remove markdown backticks if present
-    cleaned_response = re.sub(r"```json\n(.*?)\n```", r"\1", response, flags=re.DOTALL).strip()
-
-    # Debugging: Print cleaned response
-    print("🔍 Cleaned Response:", cleaned_response)
-
+# 🔹 Extract retry delay from Gemini error (for 429s)
+def extract_retry_delay_from_error(error_msg, default=30):
     try:
-        issues = json.loads(cleaned_response)  # Ensure it's valid JSON
-        return issues
-    except json.JSONDecodeError:
-        return [{"error": "Failed to parse Gemini response", "raw_output": cleaned_response}]
+        match = re.search(r'retry_delay\s*{\s*seconds:\s*(\d+)', str(error_msg))
+        if match:
+            return int(match.group(1)) + random.randint(2, 5)
+    except Exception:
+        pass
+    return default
+
+# 🔹 Language detection based on file extension
+def detect_language_from_filename(filename):
+    ext = os.path.splitext(filename)[1].lower()
+    ext_language_map = {
+        ".py": "python", ".js": "javascript", ".ts": "typescript", ".java": "java",
+        ".cpp": "c++", ".c": "c", ".cs": "c#", ".go": "go", ".rb": "ruby",
+        ".php": "php", ".swift": "swift", ".kt": "kotlin", ".m": "objective-c",
+        ".html": "html", ".css": "css", ".sql": "sql", ".sh": "bash",
+        ".r": "r", ".scala": "scala", ".dart": "dart"
+    }
+    return ext_language_map.get(ext, "plaintext")
+
+# 🔹 Analyze a single code chunk with retry logic (no default sleep!)
+def analyze_code_chunk(code_chunk, language="python", retries=4):
+    chain = bug_analysis_prompt | llm
+
+    def invoke_with_retry():
+        for attempt in range(retries):
+            try:
+                response = chain.invoke({"code_chunk": code_chunk, "language": language})
+                cleaned_response = re.sub(r"```json\n(.*?)\n```", r"\1", response, flags=re.DOTALL).strip()
+                issues = json.loads(cleaned_response)
+
+                # 🔒 Ensure only critical issues are returned (safety net)
+                return [i for i in issues if i.get("severity", "").lower() == "critical"]
+
+            except Exception as e:
+                wait = extract_retry_delay_from_error(e)
+                print(f"[Retry {attempt + 1}/{retries}] Error: {e} — Retrying in {wait}s")
+                time.sleep(wait)
+        return [{"error": "Failed after retries"}]
+
+    return invoke_with_retry()
+
+# 🔹 Analyze all chunks from one file
+def analyze_multiple_chunks(chunks, filename):
+    language = detect_language_from_filename(filename)
+    all_issues = []
+    for i, chunk in enumerate(chunks, start=1):
+        print(f"🔍 Analyzing chunk {i}/{len(chunks)} as {language}...")
+        issues = analyze_code_chunk(chunk, language=language)
+        all_issues.extend(issues)
+    return all_issues
