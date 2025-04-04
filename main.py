@@ -1,17 +1,23 @@
 import os
 import json
 import datetime
+import re
 from src.clone_repo import clone_github_repo, extract_code_files
 from src.chunk_code import process_all_code_files
 from src.analyze_code import analyze_code_chunk, detect_language_from_filename
 from src.generate_pdf_report import generate_pdf_report
 
+
+def is_valid_github_url(url):
+    pattern = r'^https:\/\/github\.com\/[\w\-]+\/[\w\-]+$'
+    return re.match(pattern, url)
+
 def main():
     """Main function to execute the BugFinder process."""
     repo_url = input("🔗 Enter GitHub repository URL: ").strip()
 
-    if not repo_url:
-        print("❌ No URL provided. Exiting...")
+    if not is_valid_github_url(repo_url):
+        print("❌ Invalid GitHub URL format. Please provide a valid public GitHub repo.")
         return
 
     # 1️⃣ Clone GitHub Repo

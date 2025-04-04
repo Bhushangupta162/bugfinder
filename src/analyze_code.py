@@ -9,6 +9,18 @@ from langchain_google_genai import GoogleGenerativeAI
 
 load_dotenv()
 
+def safe_json_parse(data):
+    try:
+        parsed = json.loads(data)
+        if isinstance(parsed, list) and all(
+            isinstance(item, dict) and "description" in item for item in parsed
+        ):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+    return [{"error": "Invalid or malformed JSON from model."}]
+
+
 llm = GoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=os.getenv("GEMINI_API_KEY"))
 
 # 🔹 Prompt: Returns only critical issues
@@ -80,11 +92,8 @@ def analyze_code_chunk(code_chunk, language="python", retries=4):
             try:
                 response = chain.invoke({"code_chunk": code_chunk, "language": language})
                 cleaned_response = re.sub(r"```json\n(.*?)\n```", r"\1", response, flags=re.DOTALL).strip()
-                issues = json.loads(cleaned_response)
-
-                # 🔒 Ensure only critical issues are returned (safety net)
+                issues = safe_json_parse(cleaned_response)
                 return [i for i in issues if i.get("severity", "").lower() == "critical"]
-
             except Exception as e:
                 wait = extract_retry_delay_from_error(e)
                 print(f"[Retry {attempt + 1}/{retries}] Error: {e} — Retrying in {wait}s")
