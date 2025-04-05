@@ -1,12 +1,52 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Bug Report Generated</title>
+  <meta charset="UTF-8">
+  <title>Bug Report Summary - BugFinder</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <h2>✅ Bug Report Ready</h2>
-  <p><b>Repository:</b> <a href="{{ repo }}" target="_blank">{{ repo_name }}</a></p>
-  <p><b>Total Critical Issues:</b> {{ issues }}</p>
-  <a href="/download/{{ filename }}">📥 Download PDF</a>
+
+  <!-- Blurred Animated Blobs -->
+  <div class="bg-blur bg1"></div>
+  <div class="bg-blur bg2"></div>
+  <div class="bg-blur bg3"></div>
+
+  <div class="container">
+    <h1>🐞 Bug Report Summary</h1>
+
+    <div class="meta">
+      <p><b>🔗 Repo:</b> <a href="{{ repo }}" target="_blank" style="color:#00f2fe;">{{ repo_name }}</a></p>
+      <p><b>⚠️ Total Issues:</b> <span style="color:#ff5f5f;">{{ issues }}</span></p>
+    </div>
+
+    {% for file, issues in report.items() %}
+      <div class="file-report">
+        <div class="file-title">📁 {{ file }}</div>
+
+        {% if not issues %}
+          <p style="color: #999;">✅ No issues found.</p>
+        {% endif %}
+
+        {% for issue in issues %}
+          <div class="issue">
+            <b>Description:</b> {{ issue.description }}<br>
+            <b>Severity:</b> {{ issue.severity }}<br>
+            <b>Recommendation:</b> {{ issue.recommendation }}<br>
+            <div class="code">{{ issue.code }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+
+    <div class="center-buttons">
+      {% if pdf_path %}
+        <a class="download" href="{{ pdf_path }}" target="_blank">📄 Download PDF Report</a>
+      {% endif %}
+      <a href="/" class="rescan">🔁 Scan Another Repo</a>
+    </div>
+  </div>
+
 </body>
 </html>

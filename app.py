@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, send_file
 from src.controller import run_analysis
 import os
-from flask import Flask
 
 app = Flask(__name__, template_folder="frontend/templates", static_folder="frontend/static")
 
@@ -14,11 +13,14 @@ def index():
         if error:
             return render_template("index.html", error=error)
 
+        # ✅ result.html expects 'report' and 'pdf_path'
         return render_template("result.html", 
-                               filename=result["pdf_filename"],
-                               issues=result["total_issues"],
-                               repo=result["repo_url"],
-                               repo_name=result["repo_name"])
+                report=result["report"],
+                pdf_path="/download/" + result["pdf_filename"],
+                repo=result["repo_url"],
+                repo_name=result["repo_name"],
+                issues=result["total_issues"]
+            )
 
     return render_template("index.html")
 
@@ -30,5 +32,6 @@ def download(filename):
         return send_file(file_path, as_attachment=True)
     return "❌ File not found", 404
 
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)

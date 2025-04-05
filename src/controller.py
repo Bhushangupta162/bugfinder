@@ -44,17 +44,23 @@ def run_analysis(repo_url):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     repo_name = repo_url.strip("/").split("/")[-1]
 
-    json_path = f"reports/bug_report_{timestamp}.json"
+    json_filename = f"bug_report_{timestamp}.json"
+    json_path = os.path.join("reports", json_filename)
+
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(reports, f, indent=4)
 
+    # Generate PDF
+    pdf_filename = f"{repo_name}_bug_report.pdf"
     generate_pdf_report(reports, repo_url)
 
+    # ✅ This matches what app.py needs to render result.html
     return {
+        "report": reports,
         "total_issues": total_issues,
         "total_files": len(code_chunks),
         "repo_url": repo_url,
         "repo_name": repo_name,
-        "pdf_filename": f"{repo_name}_bug_report.pdf",
-        "json_filename": json_path
+        "pdf_filename": pdf_filename,
+        "json_filename": json_filename
     }, None
